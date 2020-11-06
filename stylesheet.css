@@ -1,0 +1,30 @@
+body {
+  font-family: 'Open Sans', sans-serif;
+  margin:40px auto;
+  max-width:650px;
+  line-height:1.6;
+  font-size:18px;
+  color:#444;
+  padding:0 10px;
+}
+
+a:visited { color: blue }
+
+h1, h2, h3 { line-height:1.2 }
+h1 {
+  font-weight: 800;
+  margin-bottom: 0.3em;
+}
+h2 {
+  color: #666;
+  margin-top: 0;
+  font-weight: 400;
+  font-size: 1em;
+}
+
+ul {
+  margin-left: 10px;
+  margin-right: 0px;
+  padding-left: 10px;
+  padding-right: 0px;
+}
