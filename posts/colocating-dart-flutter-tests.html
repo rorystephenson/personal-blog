@@ -1,0 +1,92 @@
+<html>
+  <head>
+    <title>balanci.ng</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link href="https://fonts.googleapis.com/css2?family=Open+Sans:ital,wght@0,300;0,400;0,600;0,700;0,800;1,300;1,400&display=swap" rel="stylesheet">
+    <link rel="stylesheet" type="text/css" href="../stylesheet.css" media="screen"/>
+  </head>
+  <body>
+    <h1><a href="https://www.balanci.ng/">balanci.ng</a></h1>
+    <h2>Rory Stephenson</h2>
+
+
+    <h1>Colocating Dart/Flutter Tests</h1>
+    <p>
+      I recently started experimenting with colocating my tests with the code that they are testing, as I see is often done in react apps. I've found it easier to navigate between tests and the tested code and I feel that it encourages thinking about pieces of code as independent components. This post is about some quirks I encountered when moving tests to lib/. Note that I am using flutter but the same applies for plain dart code and any "flutter test" commands can be replaced with "dart test".
+    </p>
+
+    <h4>1. Put test files in a testing subdirectory</h4>
+    <p>
+      Test files should be in one of the <a href="https://github.com/dart-lang/sdk/blob/9c0689a887aedb5313131cd6a0fefeb9b2d2dbe8/pkg/analyzer/lib/src/lint/linter.dart#L282-L288">predefined test subdirectories</a> (test/, integration_test/, test_driver/, or testing/). This prevents the analyzer from raising warnings when accessing code in a test which is marked with the @visibleForTesting annotation.</p>
+    <p>
+      In my app the code is already organised in to separate directories (e.g. lib/src/view/login/ contains code related to a login page). Therefore for login page tests I create a lib/src/view/login/test/ directory which contains tests for the login page.
+    </p>
+
+
+    <h4>2. Use a glob to run tests in lib/</h4>
+    <p>
+      The dart/flutter testing commands expect your tests to be in a top-level testing directory. To make them pick up the tests within the lib/ directory you should use an appropriate glob, in my case this is:<br />
+      <br />
+      <code>
+        flutter test lib/**/*_test.dart
+      </code>
+    </p>
+    <p>
+      If you have a lot of tests it may make sense to gradually migrate to colocating your tests. In that case you can leave some tests in the existing test/ directory and use the following commadns to run both the colocated and existing tests:<br />
+      <br />
+      <code>
+        flutter test lib/**/*_test.dart test/**/*_test.dart
+      </code>
+    </p>
+
+    <h5>2.a. Using globs with Github Actions</h5>
+    <p>
+    I am using Github Actions to run my tests and when I updated the test command to use the globs the tests were not running properly. This turned out to be because recursive globs are not enabled by default in Github Actions run commands, this is easily fixed by enabling them with shopt. My run step for tests now looks as follows:<br />
+<pre>
+- run: |
+  shopt -s globstar
+  flutter test lib/**/*_test.dart test/**/*_test.dart
+</pre>
+    </p>
+
+    <h4>3. Don't mix package and relative imports</h4>
+    <p>
+      Mixing relative and package imports confuses Dart in equality comparisons. If object A and object B are identical instances of the same class Dart will not recognise that they are equal if object A comes from a test helper which imported the class with a package import and object B was instantiated in your test using a package import. When all of my test code was in the test/ subdirectory it was not possible to use relative imports and therefore I didn't run in to this issue.
+    </p>
+    <p>
+      When I began colocating tests and mixing relative/package imports this caused some confusing test failures. The solution is to either use only package imports or only relative ones. I initially opted for relative imports but mockito generates mocks that use package imports and therefore I opted for all package imports. I added a linter rule to my analysis_options.yaml to enforce package imports as follows:<br />
+      <pre>
+linter:
+  rules:
+    - always_use_package_imports
+      </pre>
+      Unfortunately this lint doesn't have a quick fix defined and therefore you can't use dart fix to convert the imports. Instead there is a fantastic dart package which I used to convert all of my imports automatically and very quickly: <a href="https://pub.dev/packages/import_path_converter">import_path_converter</a>
+    </p>
+
+    <h4>4. Avoid accidentally using testing code in implementation code</h4>
+    <p>
+    With testing code colocated with implementation code care should be taken not to accidentally import and use test helper code in implentation code. I have opened <a href="https://github.com/dart-lang/linter/issues/3289">an issue</a> to add a linter rule to prevent such accidents. Until such a lint exists care should be taken to avoid accidentally relying on testing code which may make assumptions unsuitable for your production app.
+    </p>
+
+    <h4>5. Prevent test code from being included in your compiled app</h4>
+    <p>
+      In order to avoid bloat and prevent testing code from unexpectedly ending up in your compiled app you can include the following in your project's build.yaml:<br />
+<pre>
+targets:
+  $default:
+    sources:
+      exclude:
+        - lib/**/test/**/*
+        - lib/**/integration_test/**/*
+        - lib/**/test_driver/**/*
+        - lib/**/testing/**/*
+</pre>
+    </p>
+
+    <h4>Summary</h4>
+
+    <p>
+      There are some little quirks to be aware of when colocating test code with implementation code but with a few little configuration changes they are all resolvable. Let me know if you have any other issues and tips by reaching out to me at: my name (see header) at gmail.
+    </p>
+  </body>
+</html>

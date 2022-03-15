@@ -15,6 +15,15 @@ h1 {
   font-weight: 800;
   margin-bottom: 0.3em;
 }
+
+h1 a,
+h1 a:active,
+h1 a:visited,
+h1 a:hover
+{
+  color: #444;
+}
+
 h2 {
   color: #666;
   margin-top: 0;
