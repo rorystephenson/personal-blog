@@ -1,0 +1,260 @@
+<html>
+  <head>
+    <title>balanci.ng</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link href="https://fonts.googleapis.com/css2?family=Open+Sans:ital,wght@0,300;0,400;0,600;0,700;0,800;1,300;1,400&display=swap" rel="stylesheet">
+    <link rel="stylesheet" type="text/css" href="../stylesheet.css" media="screen"/>
+    <style>
+      .chip {
+        display: inline-block;
+        background: #e8e8e8;
+        border: 1px solid #ccc;
+        border-radius: 16px;
+        padding: 4px 12px;
+        margin: 3px;
+        cursor: pointer;
+        font-size: 14px;
+      }
+      .chip:hover { background: #d0d0d0; }
+      .bundle-id-item {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 4px 0;
+      }
+      .bundle-id-item button {
+        background: none;
+        border: none;
+        cursor: pointer;
+        color: #c00;
+        font-size: 16px;
+      }
+      #bundle-id-list { margin: 8px 0; }
+      #output-wrapper { position: relative; }
+      #output {
+        background: #f5f5f5;
+        border: 1px solid #ddd;
+        padding: 12px;
+        overflow-x: auto;
+        font-size: 14px;
+        max-height: 500px;
+        overflow-y: auto;
+      }
+      #copy-btn {
+        position: absolute;
+        top: 8px;
+        right: 8px;
+        padding: 4px 10px;
+        cursor: pointer;
+        font-size: 13px;
+      }
+      .controls { margin: 16px 0; }
+      input[type="text"] {
+        font-size: 16px;
+        padding: 4px 8px;
+        width: 300px;
+        max-width: 60%;
+      }
+      button { font-size: 16px; }
+    </style>
+  </head>
+  <body>
+    <h1><a href="https://www.balanci.ng/">balanci.ng</a></h1>
+    <h2>Rory Stephenson</h2>
+
+    <h1>Karabiner Function Key Rule Generator</h1>
+    <p>
+      On macOS, F1&ndash;F12 act as media keys (brightness, volume, etc.) by default, and you hold Fn to get the actual function keys. This tool generates <a href="https://karabiner-elements.pqrs.org/">Karabiner-Elements</a> rules that reverse this behavior for specific apps &mdash; so F keys act as function keys in those apps while remaining media keys everywhere else.
+    </p>
+
+    <div style="background: #f0f4f8; border-left: 4px solid #888; padding: 12px 16px; border-radius: 2px;">
+      <p style="margin: 0 0 8px;">Select apps where F keys should act as standard function keys:</p>
+      <div id="suggestions"></div>
+      <div class="controls" style="margin-bottom: 0;">
+        <input type="text" id="bundle-input" placeholder="Or enter a bundle identifier" />
+        <button onclick="addBundleId()">Add</button>
+      </div>
+    </div>
+
+    <div id="bundle-id-list"></div>
+
+    <div class="controls">
+      <label>
+        <input type="checkbox" id="reverse-mapping" checked />
+        Also map Fn+F key to media key action when override is active
+      </label>
+    </div>
+
+    <div id="output-wrapper" style="display: none; margin-top: 16px;">
+      <button id="copy-btn" onclick="copyOutput()">Copy</button>
+      <pre id="output"></pre>
+    </div>
+
+    <h4>How to use</h4>
+    <p>Copy the generated JSON, then either:</p>
+    <ul>
+      <li>In Karabiner-Elements, go to Complex Modifications &rarr; Add your own rule, paste, and save.</li>
+      <li>Save it as a <code>.json</code> file in <code>~/.config/karabiner/assets/complex_modifications/</code>, then enable it via Complex Modifications &rarr; Add predefined rule.</li>
+    </ul>
+
+    <script>
+      var commonApps = [
+        { name: 'iTerm2', id: 'com.googlecode.iterm2' },
+        { name: 'VS Code', id: 'com.microsoft.VSCode' },
+        { name: 'VSCodium', id: 'com.visualstudio.code.oss' },
+        { name: 'Android Studio', id: 'com.google.android.studio' },
+        { name: 'IntelliJ IDEA', id: 'com.jetbrains.intellij' },
+        { name: 'Xcode', id: 'com.apple.dt.Xcode' },
+        { name: 'Terminal', id: 'com.apple.Terminal' },
+        { name: 'Ghostty', id: 'com.mitchellh.ghostty' },
+        { name: 'Alacritty', id: 'org.alacritty' },
+        { name: 'Cursor', id: 'com.todesktop.230313mzl4w4u92' },
+      ];
+
+      var bundleIds = [];
+
+      function renderSuggestions() {
+        var container = document.getElementById('suggestions');
+        container.innerHTML = '';
+        commonApps.forEach(function(app) {
+          var chip = document.createElement('span');
+          chip.className = 'chip';
+          chip.textContent = app.name;
+          chip.title = app.id;
+          chip.onclick = function() {
+            if (bundleIds.indexOf(app.id) === -1) {
+              bundleIds.push(app.id);
+              renderBundleIds();
+            }
+          };
+          container.appendChild(chip);
+        });
+      }
+
+      function addBundleId() {
+        var input = document.getElementById('bundle-input');
+        var val = input.value.trim();
+        if (val && bundleIds.indexOf(val) === -1) {
+          bundleIds.push(val);
+          renderBundleIds();
+          input.value = '';
+        }
+        input.focus();
+      }
+
+      document.getElementById('bundle-input').addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') addBundleId();
+      });
+
+      function renderBundleIds() {
+        var container = document.getElementById('bundle-id-list');
+        if (bundleIds.length === 0) {
+          container.innerHTML = '';
+          generate();
+          return;
+        }
+        var html = '';
+        bundleIds.forEach(function(id, i) {
+          html += '<div class="bundle-id-item"><code>' + escapeHtml(id) + '</code><button onclick="removeBundleId(' + i + ')" title="Remove">\u00d7</button></div>';
+        });
+        container.innerHTML = html;
+        generate();
+      }
+
+      function removeBundleId(index) {
+        bundleIds.splice(index, 1);
+        renderBundleIds();
+      }
+
+      function escapeHtml(str) {
+        var div = document.createElement('div');
+        div.textContent = str;
+        return div.innerHTML;
+      }
+
+      function generate() {
+        if (bundleIds.length === 0) {
+          document.getElementById('output-wrapper').style.display = 'none';
+          return;
+        }
+
+        var includeReverse = document.getElementById('reverse-mapping').checked;
+        var manipulators = [];
+        var condition = {
+          bundle_identifiers: bundleIds.slice(),
+          type: 'frontmost_application_if'
+        };
+
+        // Reverse mappings first (Fn+Fx → bare Fx) so the more specific
+        // rule matches before the broader optional:any rule below.
+        if (includeReverse) {
+          for (var i = 1; i <= 12; i++) {
+            manipulators.push({
+              conditions: [condition],
+              description: 'Map Fn+F' + i + ' to F' + i,
+              from: {
+                key_code: 'f' + i,
+                modifiers: { mandatory: ['fn'] }
+              },
+              to: [{ key_code: 'f' + i }],
+              type: 'basic'
+            });
+          }
+        }
+
+        // Core mappings: bare Fx → Fn+Fx (sends actual function key)
+        for (var i = 1; i <= 12; i++) {
+          manipulators.push({
+            conditions: [condition],
+            from: {
+              key_code: 'f' + i,
+              modifiers: { optional: ['any'] }
+            },
+            to: [{
+              key_code: 'f' + i,
+              modifiers: ['fn']
+            }],
+            type: 'basic'
+          });
+        }
+
+        var appNames = bundleIds.map(function(id) {
+          for (var j = 0; j < commonApps.length; j++) {
+            if (commonApps[j].id === id) return commonApps[j].name;
+          }
+          return id;
+        });
+
+        var rule = {
+          description: '(' + appNames.join(', ') + ') Function keys work as fn keys' + (includeReverse ? ', and Fn+Fx maps to Fx' : ''),
+          manipulators: manipulators
+        };
+
+        var file = {
+          title: 'Per-app function key overrides',
+          rules: [rule]
+        };
+
+        var json = JSON.stringify(file, null, 4);
+        var outputEl = document.getElementById('output');
+        outputEl.textContent = json;
+        document.getElementById('output-wrapper').style.display = 'block';
+        document.getElementById('copy-btn').textContent = 'Copy';
+      }
+
+      function copyOutput() {
+        var text = document.getElementById('output').textContent;
+        navigator.clipboard.writeText(text).then(function() {
+          document.getElementById('copy-btn').textContent = 'Copied!';
+          setTimeout(function() {
+            document.getElementById('copy-btn').textContent = 'Copy';
+          }, 2000);
+        });
+      }
+
+      document.getElementById('reverse-mapping').addEventListener('change', generate);
+
+      renderSuggestions();
+    </script>
+  </body>
+</html>
